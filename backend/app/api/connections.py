@@ -3,6 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.category_history import SYSTEM, acting_as
 from app.core.database import get_async_session
 from app.core.workspace_context import (
     WorkspaceContext,
@@ -106,8 +107,9 @@ async def oauth_callback(
 ):
     try:
         # The user just came back from their bank and is waiting for the
-        # first import, so it is made as a user-present request.
-        with psu_present(psu_context_from_request(request)):
+        # first import, so it is made as a user-present request. Categories the
+        # import sets on its own are the system's, not the user's.
+        with psu_present(psu_context_from_request(request)), acting_as(SYSTEM):
             connection = await connection_service.handle_oauth_callback(
                 session,
                 ctx.workspace.id,
@@ -176,8 +178,9 @@ async def sync_connection(
         # Manual sync is user-initiated, so ask the provider to pull fresh
         # data from the bank before we read, and tell the bank the user is
         # present. Scheduled syncs (Celery) keep the default behaviour: read
-        # whatever the provider already has, as background requests.
-        with psu_present(psu_context_from_request(request)):
+        # whatever the provider already has, as background requests. Either
+        # way, categories the sync sets on its own are the system's.
+        with psu_present(psu_context_from_request(request)), acting_as(SYSTEM):
             connection, merged_count, sync_outcome = await connection_service.sync_connection(
                 session,
                 connection_id,

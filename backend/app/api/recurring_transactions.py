@@ -3,6 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.category_history import SYSTEM, acting_as
 from app.core.database import get_async_session
 from app.core.workspace_context import (
     WorkspaceContext,
@@ -79,8 +80,10 @@ async def generate_recurring_transactions(
 ):
     # The button is an explicit request, so it also covers schedules whose
     # auto-generate toggle is off; the hourly task skips those. It is scoped
-    # to the workspace this request was authorized to write to.
-    count = await recurring_transaction_service.generate_pending(
-        session, ctx.user_id, include_manual=True, workspace_id=ctx.workspace.id
-    )
+    # to the workspace this request was authorized to write to. Occurrences
+    # take their template's category, so the system sets it, as in the task.
+    with acting_as(SYSTEM):
+        count = await recurring_transaction_service.generate_pending(
+            session, ctx.user_id, include_manual=True, workspace_id=ctx.workspace.id
+        )
     return {"generated": count}

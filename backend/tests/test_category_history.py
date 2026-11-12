@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 
 import mcp_server.tools  # noqa: F401 -- registers the MCP handlers
 from app.core.category_history import Actor, acting_as
+from app.models.recurring_transaction import RecurringTransaction
 from app.models.transaction import Transaction
 from app.models.transaction_category_event import TransactionCategoryEvent
 from app.schemas.transaction_category_line import (
@@ -234,6 +235,28 @@ async def test_an_unknown_agent_is_refused(client, auth_headers, session, test_t
     await session.refresh(tx)
     assert tx.category_id is None
     assert await _events(session, tx.id) == []
+
+
+async def test_generating_recurring_from_the_button_is_the_systems_doing(
+    client, auth_headers, session, test_user, test_account, test_categories
+):
+    recurring = RecurringTransaction(
+        user_id=test_user.id, account_id=test_account.id, category_id=test_categories[0].id,
+        description="GYM", amount=Decimal("30"), currency="EUR", type="debit",
+        frequency="monthly", start_date=date.today(), next_occurrence=date.today(), is_active=True,
+    )
+    session.add(recurring)
+    await session.commit()
+
+    response = await client.post("/api/recurring-transactions/generate", headers=auth_headers)
+
+    assert response.status_code == 200, response.text
+    tx = (await session.scalars(
+        select(Transaction).where(Transaction.recurring_transaction_id == recurring.id)
+    )).one()
+    (event,) = await _events(session, tx.id)
+    assert event.actor == "system"
+    assert event.category_id == test_categories[0].id
 
 
 async def test_an_external_mcp_client_is_recorded_as_mcp(session, test_user, test_transactions, test_categories):
