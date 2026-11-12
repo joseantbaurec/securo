@@ -5,8 +5,9 @@ import { createTestQueryClient, renderWithProviders } from '@/test/utils'
 import { isProposalData } from '@/lib/agent-proposals'
 import { toast } from 'sonner'
 
-const { linkTransfer, unlinkTransfer, updateGoal, updateBudget, deleteBudget, updateTransaction, createGroup } =
+const { bulkCategorize, linkTransfer, unlinkTransfer, updateGoal, updateBudget, deleteBudget, updateTransaction, createGroup } =
   vi.hoisted(() => ({
+    bulkCategorize: vi.fn(),
     linkTransfer: vi.fn(),
     unlinkTransfer: vi.fn(),
     updateGoal: vi.fn(),
@@ -22,7 +23,7 @@ vi.mock('@/lib/api', () => ({
   goals: { update: updateGoal },
   recurring: {},
   rules: {},
-  transactions: { linkTransfer, unlinkTransfer, update: updateTransaction },
+  transactions: { bulkCategorize, linkTransfer, unlinkTransfer, update: updateTransaction },
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 vi.mock('@/hooks/use-display-locale', () => ({ useDateLocale: () => 'en-GB' }))
@@ -47,6 +48,32 @@ const creditLeg = {
   type: 'credit',
   account_name: 'Savings',
 }
+
+describe('ProposalCard categorize', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    bulkCategorize.mockReset()
+  })
+
+  it('sends the proposing agent along on Apply', async () => {
+    bulkCategorize.mockResolvedValue({ updated: 1 })
+    const { user } = renderWithProviders(
+      <ProposalCard
+        toolCallId="call-categorize"
+        agentId="agent-1"
+        data={{
+          kind: 'categorize',
+          target_category: { id: 'cat-1', name: 'Groceries' },
+          affected: [{ id: 'tx-1' }],
+        }}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: /Apply/ }))
+
+    await waitFor(() => expect(bulkCategorize).toHaveBeenCalledWith(['tx-1'], 'cat-1', 'agent-1'))
+  })
+})
 
 describe('ProposalCard transfer kinds', () => {
   beforeEach(() => {

@@ -264,6 +264,7 @@ export function ChatPanel({ agent, conversationId, onConversationCreated, focusS
                     key={i}
                     toolCallId={`draft-${draft.id}-${i}`}
                     data={tool.result!.data as Record<string, unknown>}
+                    agentId={agent.id}
                   />
                 )
               }
@@ -386,7 +387,7 @@ function HistoryView({ agent, history }: { agent: Agent; history: AgentMessage[]
                   if (isProposalToolName(tc.name) && data && isProposalData(data)) {
                     // Persisted tool_call_id is stable across reloads —
                     // perfect localStorage key for the "applied" marker.
-                    return <ProposalCard key={tc.id} toolCallId={tc.id} data={data as Record<string, unknown>} />
+                    return <ProposalCard key={tc.id} toolCallId={tc.id} data={data as Record<string, unknown>} agentId={agent.id} />
                   }
                   return (
                     <ToolDebugChip

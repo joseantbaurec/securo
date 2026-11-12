@@ -205,6 +205,37 @@ async def test_bulk_categorize_records_only_rows_that_changed(client, auth_heade
     assert event.category_id == target.id
 
 
+async def test_applying_an_agents_proposal_is_credited_to_the_agent(
+    client, auth_headers, session, test_user, test_agent, test_transactions, test_categories
+):
+    tx = test_transactions[3]
+
+    response = await client.patch(
+        "/api/transactions/bulk-categorize", headers=auth_headers,
+        json={"transaction_ids": [str(tx.id)], "category_id": str(test_categories[0].id), "agent_id": str(test_agent.id)},
+    )
+
+    assert response.status_code == 200, response.text
+    (event,) = await _events(session, tx.id)
+    assert event.actor == "agent"
+    assert event.agent_id == test_agent.id
+    assert event.user_id == test_user.id
+
+
+async def test_an_unknown_agent_is_refused(client, auth_headers, session, test_transactions, test_categories):
+    tx = test_transactions[3]
+
+    response = await client.patch(
+        "/api/transactions/bulk-categorize", headers=auth_headers,
+        json={"transaction_ids": [str(tx.id)], "category_id": str(test_categories[0].id), "agent_id": str(uuid.uuid4())},
+    )
+
+    assert response.status_code == 404
+    await session.refresh(tx)
+    assert tx.category_id is None
+    assert await _events(session, tx.id) == []
+
+
 async def test_an_external_mcp_client_is_recorded_as_mcp(session, test_user, test_transactions, test_categories):
     tx = test_transactions[3]
 

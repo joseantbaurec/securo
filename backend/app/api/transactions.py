@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.app_clock import app_today
+from app.core.category_history import Actor, acting_as, current_actor
 from app.core.database import get_async_session
 from app.core.workspace_context import (
     WorkspaceContext,
@@ -341,13 +342,22 @@ async def bulk_categorize(
 ):
     # Counted before the update: split rows are left alone, and the client
     # says how many, whatever page it is showing by the time this returns.
+    actor = current_actor()
+    if data.agent_id is not None:
+        # Local import: agents are an optional module.
+        from app.agents.services.agent_service import get_agent
+
+        if await get_agent(session, data.agent_id, ctx.workspace.id) is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
+        actor = Actor("agent", user_id=ctx.user.id, agent_id=data.agent_id)
     skipped_split = await transaction_service.count_split_rows(
         session, ctx.workspace.id, data.transaction_ids
     )
     try:
-        count = await transaction_service.bulk_update_category(
-            session, ctx.workspace.id, data.transaction_ids, data.category_id
-        )
+        with acting_as(actor):
+            count = await transaction_service.bulk_update_category(
+                session, ctx.workspace.id, data.transaction_ids, data.category_id
+            )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     return {"updated": count, "skipped_split": skipped_split}

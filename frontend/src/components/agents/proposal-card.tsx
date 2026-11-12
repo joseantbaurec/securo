@@ -23,6 +23,8 @@ import type { ProposalKind, ProposalData, TransferLeg } from '@/lib/agent-propos
 interface Props {
   toolCallId: string
   data: ProposalData
+  // The agent that proposed it, credited in the category history on Apply.
+  agentId?: string
 }
 
 const APPLIED_KEY = 'securo:agent-proposal-applied'
@@ -41,7 +43,7 @@ function persistApplied(toolCallId: string, ref?: string) {
   localStorage.setItem(APPLIED_KEY, JSON.stringify(all))
 }
 
-export function ProposalCard({ toolCallId, data }: Props) {
+export function ProposalCard({ toolCallId, data, agentId }: Props) {
   const { t } = useTranslation()
   const dateLocale = useDateLocale()
   const qc = useQueryClient()
@@ -50,7 +52,7 @@ export function ProposalCard({ toolCallId, data }: Props) {
   const [showJson, setShowJson] = useState(false)
 
   const apply = useMutation({
-    mutationFn: () => applyProposal(data),
+    mutationFn: () => applyProposal(data, agentId),
     onSuccess: (ref) => {
       persistApplied(toolCallId, typeof ref === 'string' ? ref : undefined)
       setAppliedAt(Date.now())
@@ -380,12 +382,12 @@ function rejectNameCollision(data: ProposalData): void {
 // Returns a string ref (id of the new entity) when available — used as a
 // breadcrumb in the localStorage record so a future "view created entity"
 // affordance can deep-link to it.
-async function applyProposal(data: ProposalData): Promise<string | void> {
+async function applyProposal(data: ProposalData, agentId?: string): Promise<string | void> {
   const p = (data.proposed || {}) as Record<string, unknown>
   switch (data.kind) {
     case 'categorize': {
       const ids = (data.affected || []).map((a) => a.id)
-      const res = await transactions.bulkCategorize(ids, data.target_category!.id)
+      const res = await transactions.bulkCategorize(ids, data.target_category!.id, agentId)
       return `${res.updated} updated`
     }
     case 'create_category': {

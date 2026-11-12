@@ -256,6 +256,8 @@ class TransactionRead(TransactionBase):
 class BulkCategorizeRequest(BaseModel):
     transaction_ids: list[uuid.UUID]
     category_id: Optional[uuid.UUID] = None
+    # Set when the user applies an agent's proposal, so the history credits the agent.
+    agent_id: Optional[uuid.UUID] = None
 
 
 class TransactionBulkDeleteRequest(BaseModel):
