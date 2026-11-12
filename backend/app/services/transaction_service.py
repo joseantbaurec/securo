@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.app_clock import app_today
+from app.core.category_history import record_bulk
 from app.models.transaction import Transaction
 from app.models.transaction_attachment import TransactionAttachment
 from app.models.account import Account
@@ -2066,9 +2067,15 @@ async def bulk_update_category(
         )
     if linked is not None:
         raise ValueError("Remove the mortgage breakdown before changing this payment")
+    changed = (
+        await session.scalars(
+            select(Transaction.id).where(*target, Transaction.category_id.is_distinct_from(category_id))
+        )
+    ).all()
     result = await session.execute(
         update(Transaction).where(*target).values(category_id=category_id)
     )
+    record_bulk(session, workspace_id, changed, category_id)
     await session.commit()
     return cast(CursorResult, result).rowcount
 

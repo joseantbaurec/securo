@@ -7,6 +7,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import load_only
 
+from app.core.category_history import Actor, acting_as
 from app.models.rule import Rule
 from app.models.category import Category
 from app.models.payee import Payee
@@ -751,13 +752,14 @@ async def apply_rules_to_transaction(
         conditions = rule.conditions or []
         actions = rule.actions or []
         if evaluate_conditions(rule.conditions_op, conditions, transaction):
-            category_set = apply_rule_actions(
-                actions,
-                transaction,
-                category_set,
-                assignable_category_ids=assignable_categories,
-                existing_payee_ids=existing_payees,
-            )
+            with acting_as(Actor("rule", rule_id=rule.id)):
+                category_set = apply_rule_actions(
+                    actions,
+                    transaction,
+                    category_set,
+                    assignable_category_ids=assignable_categories,
+                    existing_payee_ids=existing_payees,
+                )
 
 
 def _rule_effect_state(tx: Transaction) -> tuple:
@@ -955,16 +957,17 @@ async def apply_single_rule(
             tx.notes,
             tx.is_ignored,
         )
-        apply_rule_actions(
-            actions,
-            tx,
-            # Overwriting never undoes a split across categories.
-            category_already_set=tx.has_category_lines
-            or (tx.category_id is not None and not overwrite_existing_categories),
-            skip_description=_has_manual_description(tx),
-            assignable_category_ids=assignable_categories,
-            existing_payee_ids=existing_payees,
-        )
+        with acting_as(Actor("rule", rule_id=rule.id)):
+            apply_rule_actions(
+                actions,
+                tx,
+                # Overwriting never undoes a split across categories.
+                category_already_set=tx.has_category_lines
+                or (tx.category_id is not None and not overwrite_existing_categories),
+                skip_description=_has_manual_description(tx),
+                assignable_category_ids=assignable_categories,
+                existing_payee_ids=existing_payees,
+            )
         after = (
             tx.category_id,
             tx.payee_id,
@@ -1023,19 +1026,21 @@ async def apply_all_rules(session: AsyncSession, workspace_id: uuid.UUID) -> int
             conditions = rule.conditions or []
             actions = rule.actions or []
             if evaluate_conditions(rule.conditions_op, conditions, tx):
-                if not matched:
-                    if not tx.has_category_lines:
-                        tx.category_id = None
-                    tx.notes = None
-                    matched = True
-                category_set = apply_rule_actions(
-                    actions,
-                    tx,
-                    category_set,
-                    skip_description=preserve_manual_description,
-                    assignable_category_ids=assignable_categories,
-                    existing_payee_ids=existing_payees,
-                )
+                # The reset belongs to the first matching rule too.
+                with acting_as(Actor("rule", rule_id=rule.id)):
+                    if not matched:
+                        if not tx.has_category_lines:
+                            tx.category_id = None
+                        tx.notes = None
+                        matched = True
+                    category_set = apply_rule_actions(
+                        actions,
+                        tx,
+                        category_set,
+                        skip_description=preserve_manual_description,
+                        assignable_category_ids=assignable_categories,
+                        existing_payee_ids=existing_payees,
+                    )
 
         after = (
             tx.category_id,

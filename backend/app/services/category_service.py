@@ -8,6 +8,7 @@ from sqlalchemy import func, or_, select, update as sa_update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.category_history import record_bulk
 from app.models.account import Account
 from app.models.budget import Budget
 from app.models.category import Category
@@ -570,6 +571,15 @@ async def _transfer_category_references(
     destination_id: uuid.UUID,
 ) -> None:
     """Point everything that used one category at another, without committing."""
+    moved = (
+        await session.scalars(
+            select(Transaction.id).where(
+                Transaction.workspace_id == workspace_id,
+                Transaction.category_id == category_id,
+            )
+        )
+    ).all()
+    record_bulk(session, workspace_id, moved, destination_id)
     for model in (Transaction, RecurringTransaction):
         await session.execute(
             sa_update(model)

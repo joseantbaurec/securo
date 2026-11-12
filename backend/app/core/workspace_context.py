@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.app_clock import use_resolved_timezone, workspace_timezone
 from app.core.auth import current_active_user
+from app.core.category_history import Actor, acting_as
 from app.core.database import get_async_session
 from app.models.user import User
 from app.models.workspace import Workspace, WorkspaceMember
@@ -95,7 +96,10 @@ async def current_workspace(
                 raise HTTPException(status_code=403, detail="This access token belongs to another workspace")
         x_workspace_id = str(access_token.workspace_id)
     ctx = await resolve_workspace(x_workspace_id, user, session)
-    with use_resolved_timezone(workspace_timezone(ctx.workspace.timezone)):
+    with (
+        use_resolved_timezone(workspace_timezone(ctx.workspace.timezone)),
+        acting_as(Actor("user", user_id=user.id)),
+    ):
         yield ctx
 
 

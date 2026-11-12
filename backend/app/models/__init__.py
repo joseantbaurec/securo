@@ -26,6 +26,7 @@ from app.models.credit_card_bill import CreditCardBill
 from app.models.group import Group, GroupMember
 from app.models.transaction_split import TransactionSplit
 from app.models.transaction_category_line import TransactionCategoryLine
+from app.models.transaction_category_event import TransactionCategoryEvent
 from app.models.recurring_transaction_category_line import RecurringTransactionCategoryLine
 from app.models.group_settlement import GroupSettlement
 from app.models.collection import Collection, collection_accounts, collection_asset_groups
@@ -51,6 +52,8 @@ from app.models.reconciliation import (
 # workspace_id from user_id on financial entities. Imported last so all
 # referenced models are loaded.
 from app.core import workspace_autostamp  # noqa: F401, E402
+# Side-effect import: record who changes each transaction's category.
+from app.core import category_history  # noqa: F401, E402
 
 __all__ = [
     "AccessToken",
@@ -86,6 +89,7 @@ __all__ = [
     "GroupMember",
     "TransactionSplit",
     "TransactionCategoryLine",
+    "TransactionCategoryEvent",
     "RecurringTransactionCategoryLine",
     "GroupSettlement",
     "Collection",
